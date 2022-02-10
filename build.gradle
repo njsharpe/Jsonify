@@ -4,7 +4,3 @@ plugins {
 
 group 'me.njsharpe.jsonify'
 version '1.0-SNAPSHOT'
-
-repositories {
-    mavenCentral()
-}

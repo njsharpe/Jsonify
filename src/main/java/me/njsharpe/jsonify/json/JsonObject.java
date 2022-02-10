@@ -1,42 +1,35 @@
 package me.njsharpe.jsonify.json;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.Map;
 
-public class JsonObject implements IJsonObject {
+public class JsonObject implements IJson {
 
-    private final Map<String, JsonPoint<?>> map;
+    private final Collection<JsonPair> objects;
 
     public JsonObject() {
-        map = new HashMap<>();
+        this.objects = new ArrayList<>();
     }
 
-    public <T> void append(String key, T value) {
-        if(value == null) {
-            this.map.put(key, null);
-            return;
-        }
-        this.map.put(key, new JsonPoint<>(value));
+    public void append(JsonPair json) {
+        this.objects.add(json);
     }
 
-    public Map<String, JsonPoint<?>> getData() {
-        return this.map;
+    public Collection<JsonPair> getObjects() {
+        return this.objects;
     }
 
-    @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder().append("{");
-        Iterator<Map.Entry<String, JsonPoint<?>>> it = this.map.entrySet().iterator();
+        StringBuilder builder = new StringBuilder();
+        builder.append("{");
+        Iterator<JsonPair> it = this.objects.iterator();
         while(it.hasNext()) {
-            Map.Entry<String, JsonPoint<?>> value = it.next();
-            builder.append(String.format("\"%s\": %s", value.getKey(),
-                    value.getValue() == null ? null : value.getValue().toString()));
-            if(it.hasNext()) {
-                builder.append(", ");
-            }
+            builder.append(it.next().toString());
+            if(it.hasNext()) builder.append(", ");
         }
         builder.append("}");
         return builder.toString();
     }
+
 }

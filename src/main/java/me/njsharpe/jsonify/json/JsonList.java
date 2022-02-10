@@ -4,36 +4,29 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class JsonList implements IJsonObject {
+public class JsonList implements IJson {
 
-    private final List<JsonPoint<?>> list;
+    private final List<IJson> list;
 
     public JsonList() {
-        list = new ArrayList<>();
+        this.list = new ArrayList<>();
     }
 
-    public <T> void append(T value) {
-        if(value == null) {
-            this.list.add(null);
-            return;
-        }
-        this.list.add(new JsonPoint<>(value));
+    public void add(IJson json) {
+        this.list.add(json);
     }
 
-    public List<JsonPoint<?>> getData() {
+    public List<IJson> getList() {
         return this.list;
     }
 
-    @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder().append("[");
-        Iterator<JsonPoint<?>> it = this.list.iterator();
+        StringBuilder builder = new StringBuilder();
+        builder.append("[");
+        Iterator<IJson> it = this.list.iterator();
         while(it.hasNext()) {
-            JsonPoint<?> value = it.next();
-            builder.append(value == null ? null : value.toString());
-            if(it.hasNext()) {
-                builder.append(", ");
-            }
+            builder.append(it.next().toString());
+            if(it.hasNext()) builder.append(", ");
         }
         builder.append("]");
         return builder.toString();
