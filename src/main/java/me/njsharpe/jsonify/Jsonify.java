@@ -1,13 +1,11 @@
 package me.njsharpe.jsonify;
 
-import me.njsharpe.jsonify.exception.JsonDeserializeException;
 import me.njsharpe.jsonify.json.*;
 import sun.reflect.ReflectionFactory;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.*;
 
 public class Jsonify {
@@ -219,7 +217,6 @@ public class Jsonify {
                 field.setAccessible(true);
                 field.set(t, jsonToObject(field.getType(), obj.getValue()));
             }
-
             return t;
         } catch(Exception ex) {
             ex.printStackTrace();
@@ -236,7 +233,7 @@ public class Jsonify {
         return collection;
     }
 
-    public static <T> T[] asList(Class<T> clazz, JsonList json) {
+    public static <T> T[] asArray(Class<T> clazz, JsonList json) {
         List<IJson> list = json.getList();
         Object array = Array.newInstance(clazz, list.size());
         for(int i = 0; i < list.size(); i++) {
@@ -244,80 +241,5 @@ public class Jsonify {
         }
         return (T[]) array;
     }
-
-//    public static <T> List<T> fromJson(Class<T> from, JsonList json) {
-//        List<T> list = new ArrayList<>();
-//        if(json == null) return null;
-//        json.getData().forEach(p -> {
-//            list.add(fromJson(from, (JsonObject) p.getValue()));
-//        });
-//        return list;
-//    }
-//
-//    public static <T> T fromJson(Class<T> from, JsonObject json) {
-//        if(json == null) return null;
-//        try {
-//            ReflectionFactory factory = ReflectionFactory.getReflectionFactory();
-//            Constructor<?> constructor = factory.newConstructorForSerialization(from,
-//                    Object.class.getDeclaredConstructor());
-//            T t = from.cast(constructor.newInstance());
-//
-//            Map<String, JsonPoint<?>> data = json.getData();
-//            for(Map.Entry<String, JsonPoint<?>> entry : data.entrySet()) {
-//                Field field = from.getDeclaredField(entry.getKey());
-//                if(field.isAnnotationPresent(JsonIgnore.class)) continue;
-//                field.setAccessible(true);
-//                Class<?> ft = field.getType();
-//                Object value = entry.getValue() == null ? null : entry.getValue().getValue();
-//                if(value == null) {
-//                    field.set(t, null);
-//                    continue;
-//                }
-//                if(ft.isPrimitive() || isAccepted(ft) || ft.isEnum()) {
-//                    if(isList(ft)) {
-//                        JsonList list = (JsonList) value;
-//                        List<Object> array = new ArrayList<>();
-//                        for(JsonPoint<?> v : list.getData()) {
-//                            array.add(v == null ? null : fromJson(v.getType(), (JsonObject) v.getValue()));
-//                        }
-//                        field.set(t, array);
-//                    } else if(isSet(ft)) {
-//                        JsonList list = (JsonList) value;
-//                        Set<Object> set = new HashSet<>();
-//                        for(JsonPoint<?> v : list.getData()) {
-//                            set.add(v == null ? null : fromJson(v.getType(), (JsonObject) v.getValue()));
-//                        }
-//                        field.set(t, set);
-//                    } else if(isMap(ft)) {
-//                        JsonObject object = (JsonObject) value;
-//                        Map<String, Object> map = new HashMap<>();
-//                        object.getData().forEach((k, v) -> {
-//                            map.put(k, v == null ? null : fromJson(v.getType(), (JsonObject) v.getValue()));
-//                        });
-//                        field.set(t, map);
-//                    } else {
-//                        field.set(t, value);
-//                    }
-//                } else if(ft.isArray()) {
-//                    JsonList list = (JsonList) value;
-//                    int length = list.getData().size();
-//                    Object array = Array.newInstance(ft.getComponentType(), length);
-//                    for(int i = 0; i < length; i++) {
-//                        Object v = list.getData().get(i) == null ? null : list.getData().get(i).getValue();
-//                        Array.set(array, i, v);
-//                    }
-//                    field.set(t, array);
-//                } else {
-//                    field.set(t, fromJson(ft, (JsonObject) value));
-//                }
-//            }
-//
-//            return t;
-//        } catch (Exception ex) {
-//            ex.printStackTrace();
-//        }
-//
-//        return null;
-//    }
 
 }
