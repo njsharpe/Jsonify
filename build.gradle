@@ -4,3 +4,14 @@ plugins {
 
 group 'me.njsharpe.jsonify'
 version '1.0-SNAPSHOT'
+
+jar {
+    baseName 'Jsonify'
+    version null
+    doLast {
+        copy {
+            from 'build/libs/Jsonify.jar'
+            into 'I:/Artifacts/Releases'
+        }
+    }
+}
