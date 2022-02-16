@@ -5,21 +5,27 @@ plugins {
 group 'me.njsharpe.jsonify'
 version '1.0-SNAPSHOT'
 
-targetCompatibility = '1.8'
-sourceCompatibility = '1.8'
-
-task deploy {
+task dev {
     dependsOn jar
     doLast {
         copy {
             from 'build/libs/Jsonify.jar'
-            into project.properties['releases_dir']
+            into project.properties['development.snapshots_dir']
+        }
+    }
+}
+
+task prod {
+    dependsOn jar
+    doLast {
+        copy {
+            from 'build/libs/Jsonify.jar'
+            into project.properties['production.releases_dir']
         }
     }
 }
 
 jar {
-    dependsOn clean
     archiveFileName = 'Jsonify.jar'
     archiveVersion = null
 }
