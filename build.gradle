@@ -5,6 +5,9 @@ plugins {
 group 'me.njsharpe.jsonify'
 version '1.0-SNAPSHOT'
 
+targetCompatibility = '1.8'
+sourceCompatibility = '1.8'
+
 task deploy {
     dependsOn jar
     doLast {

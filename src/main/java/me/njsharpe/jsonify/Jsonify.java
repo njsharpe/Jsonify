@@ -141,12 +141,12 @@ public class Jsonify {
     }
 
     private static <T> T jsonToObject(Class<T> clazz, IJson json) {
-        if((clazz.isPrimitive() || isPrimitive(clazz) || clazz.isEnum()) && json instanceof JsonPoint point)
-            return (T) point.getValue();
-        if(isList(clazz) && json instanceof JsonList list) return clazz.cast(jsonListToList(clazz, list));
-        if(isSet(clazz) && json instanceof JsonSet set) return clazz.cast(jsonSetToSet(clazz, set));
-        if(isMap(clazz) && json instanceof JsonObject map) return clazz.cast(jsonObjectToMap(clazz, map));
-        if(clazz.isArray() && json instanceof JsonList array) return clazz.cast(jsonListToArray(clazz, array));
+        if((clazz.isPrimitive() || isPrimitive(clazz) || clazz.isEnum()) && json instanceof JsonPoint)
+            return (T) ((JsonPoint) json).getValue();
+        if(isList(clazz) && json instanceof JsonList) return clazz.cast(jsonListToList(clazz, (JsonList) json));
+        if(isSet(clazz) && json instanceof JsonSet) return clazz.cast(jsonSetToSet(clazz, (JsonSet) json));
+        if(isMap(clazz) && json instanceof JsonObject) return clazz.cast(jsonObjectToMap(clazz, (JsonObject) json));
+        if(clazz.isArray() && json instanceof JsonList) return clazz.cast(jsonListToArray(clazz, (JsonList) json));
         try {
             JsonObject object = (JsonObject) json;
             ReflectionFactory factory = ReflectionFactory.getReflectionFactory();
