@@ -5,13 +5,18 @@ plugins {
 group 'me.njsharpe.jsonify'
 version '1.0-SNAPSHOT'
 
-jar {
-    baseName 'Jsonify'
-    version null
+task deploy {
+    dependsOn jar
     doLast {
         copy {
             from 'build/libs/Jsonify.jar'
-            into 'I:/Artifacts/Releases'
+            into project.properties['releases_dir']
         }
     }
+}
+
+jar {
+    dependsOn clean
+    archiveFileName = 'Jsonify.jar'
+    archiveVersion = null
 }
