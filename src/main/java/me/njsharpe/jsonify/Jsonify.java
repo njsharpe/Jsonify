@@ -41,6 +41,17 @@ public class Jsonify {
         return PRIMITIVES.contains(clazz);
     }
 
+    private static JsonObject search(Class<?> clazz, Object object) throws IllegalAccessException {
+        JsonObject json = new JsonObject();
+        for(Field field : clazz.getDeclaredFields()) {
+            if(field.isAnnotationPresent(JsonIgnore.class)) continue;
+            field.setAccessible(true);
+            if(field.get(object) != null)
+                json.append(new JsonPair(field.getName(), objectToJson(field.get(object))));
+        }
+        return json;
+    }
+
     private static <T> IJson objectToJson(T object) {
         Class<?> clazz = object.getClass();
 
@@ -52,13 +63,7 @@ public class Jsonify {
             if(isSet(clazz)) return setToJsonSet((Set<?>) object);
             if(isMap(clazz)) return mapToJsonObject((Map<String, ?>) object);
             if(clazz.isArray()) return arrayToJsonList((Object[]) object);
-            JsonObject json = new JsonObject();
-            for(Field field : clazz.getDeclaredFields()) {
-                if(field.isAnnotationPresent(JsonIgnore.class)) continue;
-                field.setAccessible(true);
-                json.append(new JsonPair(field.getName(), objectToJson(field.get(object))));
-            }
-            return json;
+            return search(clazz, object);
         } catch(Exception ex) {
             ex.printStackTrace();
         }
@@ -112,12 +117,7 @@ public class Jsonify {
         Class<?> clazz = object.getClass();
 
         try {
-            for(Field field : clazz.getDeclaredFields()) {
-                if (field.isAnnotationPresent(JsonIgnore.class)) continue;
-                field.setAccessible(true);
-                if(field.get(object) != null)
-                    json.append(new JsonPair(field.getName(), objectToJson(field.get(object))));
-            }
+            json = search(clazz, object);
         } catch(Exception ex) {
             ex.printStackTrace();
         }
@@ -128,7 +128,7 @@ public class Jsonify {
     public static JsonList toJson(Object[] array) {
         JsonList json = new JsonList();
         for(Object obj : array) {
-            json.add(objectToJson(obj));
+            if(obj != null) json.add(objectToJson(obj));
         }
         return json;
     }
@@ -136,7 +136,7 @@ public class Jsonify {
     public static JsonList toJson(Collection<?> collection) {
         JsonList json = new JsonList();
         collection.forEach(obj -> {
-            json.add(objectToJson(obj));
+            if(obj != null) json.add(objectToJson(obj));
         });
         return json;
     }
