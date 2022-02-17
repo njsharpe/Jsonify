@@ -115,7 +115,8 @@ public class Jsonify {
             for(Field field : clazz.getDeclaredFields()) {
                 if (field.isAnnotationPresent(JsonIgnore.class)) continue;
                 field.setAccessible(true);
-                json.append(new JsonPair(field.getName(), objectToJson(field.get(object))));
+                if(field.get(object) != null)
+                    json.append(new JsonPair(field.getName(), objectToJson(field.get(object))));
             }
         } catch(Exception ex) {
             ex.printStackTrace();
