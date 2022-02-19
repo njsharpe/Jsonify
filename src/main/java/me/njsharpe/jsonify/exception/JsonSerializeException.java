@@ -6,4 +6,12 @@ public class JsonSerializeException extends RuntimeException {
         super(message);
     }
 
+    public JsonSerializeException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    public JsonSerializeException(Throwable cause) {
+        super(cause);
+    }
+
 }

@@ -1,8 +1,11 @@
 package me.njsharpe.jsonify;
 
+import me.njsharpe.jsonify.exception.JsonDeserializeException;
+import me.njsharpe.jsonify.exception.JsonSerializeException;
 import me.njsharpe.jsonify.json.*;
 import sun.reflect.ReflectionFactory;
 
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -27,6 +30,131 @@ public class Jsonify {
             Integer.class, Long.class, Short.class, Void.class, String.class
     );
 
+    private static class Impl<T extends Serializable> {
+
+        private JsonObject search(Class<T> clazz, Object object) {
+            JsonObject json = new JsonObject();
+            try {
+                for(Field field : clazz.getDeclaredFields()) {
+                    Class<?> type = field.getType();
+                    if(!Serializable.class.isAssignableFrom(type) && !type.isPrimitive() && !isPrimitive(type)
+                            && !type.isEnum()) continue;
+                    try { field.setAccessible(true); } catch (Exception ignore) { continue; }
+                    if(field.isAnnotationPresent(JsonIgnore.class)) continue;
+                    if(field.get(object) != null)
+                        json.append(new JsonPair(field.getName(), this.objectToJson((T) field.get(object))));
+                }
+            } catch (IllegalAccessException ex) {
+                // Fall through
+            } catch (Exception ex) {
+                throw new JsonSerializeException("Could not serialize type: %s".formatted(clazz.getName()), ex);
+            }
+            return json;
+        }
+
+        private IJson objectToJson(T object) {
+            Class<T> clazz = (Class<T>) object.getClass();
+            // String: char[], Integer: int, etc...
+            if(clazz.isPrimitive() || isPrimitive(clazz) || clazz.isEnum())
+                return new JsonPoint<>(object);
+            if(isList(clazz)) return this.listToJsonList((List<T>) object);
+            if(isSet(clazz)) return this.setToJsonSet((Set<T>) object);
+            if(isMap(clazz)) return this.mapToJsonObject((Map<String, T>) object);
+            if(clazz.isArray()) return this.arrayToJsonList((T[]) object);
+            return this.search(clazz, object);
+        }
+
+        private JsonList listToJsonList(List<T> list) {
+            JsonList json = new JsonList();
+            list.forEach(obj -> {
+                json.add(this.objectToJson(obj));
+            });
+            return json;
+        }
+
+        private JsonSet setToJsonSet(Set<T> set) {
+            JsonSet json = new JsonSet();
+            set.forEach(obj -> {
+                json.add(this.objectToJson(obj));
+            });
+            return json;
+        }
+
+        private JsonObject mapToJsonObject(Map<String, T> map) {
+            JsonObject json = new JsonObject();
+            map.forEach((k, v) -> {
+                json.append(new JsonPair(k, this.objectToJson(v)));
+            });
+            return json;
+        }
+
+        private JsonList arrayToJsonList(T[] array) {
+            JsonList json = new JsonList();
+            for(T obj : array) {
+                json.add(this.objectToJson(obj));
+            }
+            return json;
+        }
+
+        private T jsonToObject(Class<T> clazz, IJson json) {
+            if((clazz.isPrimitive() || isPrimitive(clazz) || clazz.isEnum()) && json instanceof JsonPoint)
+                return (T) ((JsonPoint) json).getValue();
+            if(isList(clazz) && json instanceof JsonList) return clazz.cast(this.jsonListToList(clazz, (JsonList) json));
+            if(isSet(clazz) && json instanceof JsonSet) return clazz.cast(this.jsonSetToSet(clazz, (JsonSet) json));
+            if(isMap(clazz) && json instanceof JsonObject) return clazz.cast(this.jsonObjectToMap(clazz, (JsonObject) json));
+            if(clazz.isArray() && json instanceof JsonList) return clazz.cast(this.jsonListToArray(clazz, (JsonList) json));
+            try {
+                JsonObject object = (JsonObject) json;
+                ReflectionFactory factory = ReflectionFactory.getReflectionFactory();
+                Constructor<?> constructor = factory.newConstructorForSerialization(clazz,
+                        Object.class.getDeclaredConstructor());
+                T t = clazz.cast(constructor.newInstance());
+                for(JsonPair obj : object.getObjects()) {
+                    Field field = clazz.getDeclaredField(obj.getKey());
+                    field.setAccessible(true);
+                    field.set(t, this.jsonToObject((Class<T>) field.getType(), obj.getValue()));
+                }
+                return t;
+            } catch(Exception ex) {
+                throw new JsonDeserializeException("Could not deserialize type: %s".formatted(clazz.getName()), ex);
+            }
+        }
+
+        private List<T> jsonListToList(Class<T> clazz, JsonList json) {
+            List<T> list = new ArrayList<>();
+            json.getList().forEach(obj -> {
+                list.add(this.jsonToObject(clazz, obj));
+            });
+            return list;
+        }
+
+        private Set<T> jsonSetToSet(Class<T> clazz, JsonSet json) {
+            Set<T> set = new HashSet<>();
+            json.getSet().forEach(obj -> {
+                set.add(this.jsonToObject(clazz, obj));
+            });
+            return set;
+        }
+
+        private Map<String, T> jsonObjectToMap(Class<T> clazz, JsonObject json) {
+            Map<String, T> map = new HashMap<>();
+            json.getObjects().forEach(obj -> {
+                map.put(obj.getKey(), this.jsonToObject(clazz, obj.getValue()));
+            });
+            return map;
+        }
+
+        private Object[] jsonListToArray(Class<T> clazz, JsonList json) {
+            List<IJson> list = json.getList();
+            Object[] array = new Object[list.size()];
+            for(int i = 0; i < list.size(); i++) {
+                array[i] = this.jsonToObject(clazz, list.get(i));
+            }
+            return array;
+        }
+
+    }
+
     private static boolean isList(Class<?> clazz) {
         return LIST_TYPES.contains(clazz);
     }
@@ -41,173 +169,60 @@ public class Jsonify {
         return PRIMITIVES.contains(clazz);
     }
 
-    private static JsonObject search(Class<?> clazz, Object object) throws IllegalAccessException {
-        JsonObject json = new JsonObject();
-        for(Field field : clazz.getDeclaredFields()) {
-            if(field.isAnnotationPresent(JsonIgnore.class)) continue;
-            field.setAccessible(true);
-            if(field.get(object) != null)
-                json.append(new JsonPair(field.getName(), objectToJson(field.get(object))));
-        }
-        return json;
-    }
-
-    private static <T> IJson objectToJson(T object) {
-        Class<?> clazz = object.getClass();
-
-        try {
-            // String: char[], Integer: int, etc...
-            if(clazz.isPrimitive() || isPrimitive(clazz) || clazz.isEnum())
-                return new JsonPoint<>(object);
-            if(isList(clazz)) return listToJsonList((List<?>) object);
-            if(isSet(clazz)) return setToJsonSet((Set<?>) object);
-            if(isMap(clazz)) return mapToJsonObject((Map<String, ?>) object);
-            if(clazz.isArray()) return arrayToJsonList((Object[]) object);
-            return search(clazz, object);
-        } catch(Exception ex) {
-            ex.printStackTrace();
-        }
-
-        return null;
-    }
-
-    private static JsonList listToJsonList(List<?> list) {
-        JsonList json = new JsonList();
-        list.forEach(obj -> {
-            json.add(objectToJson(obj));
-        });
-        return json;
-    }
-
-    private static JsonSet setToJsonSet(Set<?> set) {
-        JsonSet json = new JsonSet();
-        set.forEach(obj -> {
-            json.add(objectToJson(obj));
-        });
-        return json;
-    }
-
-    private static JsonObject mapToJsonObject(Map<String, ?> map) {
+    public static <T extends Serializable> JsonObject toJson(Map<String, T> map) {
+        Impl<T> impl = new Impl<>();
         JsonObject json = new JsonObject();
         map.forEach((k, v) -> {
-            json.append(new JsonPair(k, objectToJson(v)));
+            json.append(new JsonPair(k, impl.objectToJson(v)));
         });
         return json;
     }
 
-    private static JsonList arrayToJsonList(Object[] array) {
-        JsonList json = new JsonList();
-        for(Object obj : array) {
-            json.add(objectToJson(obj));
-        }
-        return json;
-    }
-
-    public static JsonObject toJson(Map<String, ?> map) {
-        JsonObject json = new JsonObject();
-        map.forEach((k, v) -> {
-            json.append(new JsonPair(k, objectToJson(v)));
-        });
-        return json;
-    }
-
-    public static JsonObject toJson(Object object) {
-        JsonObject json = new JsonObject();
+    public static <T extends Serializable> JsonObject toJson(T object) {
+        Impl<T> impl = new Impl<>();
         if(object == null) return null;
-        Class<?> clazz = object.getClass();
+        Class<T> clazz = (Class<T>) object.getClass();
+
+        JsonObject json;
 
         try {
-            json = search(clazz, object);
+            json = impl.search(clazz, object);
         } catch(Exception ex) {
-            ex.printStackTrace();
+            throw new JsonSerializeException(ex);
         }
 
         return json;
     }
 
-    public static JsonList toJson(Object[] array) {
+    public static <T extends Serializable> JsonList toJson(T[] array) {
+        Impl<T> impl = new Impl<>();
         JsonList json = new JsonList();
-        for(Object obj : array) {
-            if(obj != null) json.add(objectToJson(obj));
+        for(T obj : array) {
+            if(obj != null) json.add(impl.objectToJson(obj));
         }
         return json;
     }
 
-    public static JsonList toJson(Collection<?> collection) {
+    public static <T extends Serializable> JsonList toJson(Collection<T> collection) {
+        Impl<T> impl = new Impl<>();
         JsonList json = new JsonList();
         collection.forEach(obj -> {
-            if(obj != null) json.add(objectToJson(obj));
+            if(obj != null) json.add(impl.objectToJson(obj));
         });
         return json;
     }
 
-    private static <T> T jsonToObject(Class<T> clazz, IJson json) {
-        if((clazz.isPrimitive() || isPrimitive(clazz) || clazz.isEnum()) && json instanceof JsonPoint)
-            return (T) ((JsonPoint) json).getValue();
-        if(isList(clazz) && json instanceof JsonList) return clazz.cast(jsonListToList(clazz, (JsonList) json));
-        if(isSet(clazz) && json instanceof JsonSet) return clazz.cast(jsonSetToSet(clazz, (JsonSet) json));
-        if(isMap(clazz) && json instanceof JsonObject) return clazz.cast(jsonObjectToMap(clazz, (JsonObject) json));
-        if(clazz.isArray() && json instanceof JsonList) return clazz.cast(jsonListToArray(clazz, (JsonList) json));
-        try {
-            JsonObject object = (JsonObject) json;
-            ReflectionFactory factory = ReflectionFactory.getReflectionFactory();
-            Constructor<?> constructor = factory.newConstructorForSerialization(clazz,
-                    Object.class.getDeclaredConstructor());
-            T t = clazz.cast(constructor.newInstance());
-            for(JsonPair obj : object.getObjects()) {
-                Field field = clazz.getDeclaredField(obj.getKey());
-                field.setAccessible(true);
-                field.set(t, jsonToObject(field.getType(), obj.getValue()));
-            }
-            return t;
-        } catch(Exception ex) {
-            ex.printStackTrace();
-        }
-        return null;
-    }
-
-    private static List<Object> jsonListToList(Class<?> clazz, JsonList json) {
-        List<Object> list = new ArrayList<>();
-        json.getList().forEach(obj -> {
-            list.add(jsonToObject(clazz, obj));
-        });
-        return list;
-    }
-
-    private static Set<Object> jsonSetToSet(Class<?> clazz, JsonSet json) {
-        Set<Object> set = new HashSet<>();
-        json.getSet().forEach(obj -> {
-            set.add(jsonToObject(clazz, obj));
-        });
-        return set;
-    }
-
-    private static Map<String, Object> jsonObjectToMap(Class<?> clazz, JsonObject json) {
-        Map<String, Object> map = new HashMap<>();
-        json.getObjects().forEach(obj -> {
-            map.put(obj.getKey(), jsonToObject(clazz, obj.getValue()));
-        });
-        return map;
-    }
-
-    private static Object[] jsonListToArray(Class<?> clazz, JsonList json) {
-        List<IJson> list = json.getList();
-        Object[] array = new Object[list.size()];
-        for(int i = 0; i < list.size(); i++) {
-            array[i] = jsonToObject(clazz, list.get(i));
-        }
-        return array;
-    }
-
-    public static <T> Map<String, T> asMap(Class<T> clazz, JsonObject json) {
+    public static <T extends Serializable> Map<String, T> asMap(Class<T> clazz, JsonObject json) {
+        Impl<T> impl = new Impl<>();
         Map<String, T> map = new HashMap<>();
         json.getObjects().forEach(obj -> {
-            map.put(obj.getKey(), jsonToObject(clazz, obj.getValue()));
+            map.put(obj.getKey(), impl.jsonToObject(clazz, obj.getValue()));
         });
         return map;
     }
 
-    public static <T> T fromJson(Class<T> clazz, JsonObject json) {
+    public static <T extends Serializable> T fromJson(Class<T> clazz, JsonObject json) {
+        Impl<T> impl = new Impl<>();
         try {
             ReflectionFactory factory = ReflectionFactory.getReflectionFactory();
             Constructor<?> constructor = factory.newConstructorForSerialization(clazz,
@@ -216,29 +231,29 @@ public class Jsonify {
             for(JsonPair obj : json.getObjects()) {
                 Field field = clazz.getDeclaredField(obj.getKey());
                 field.setAccessible(true);
-                field.set(t, jsonToObject(field.getType(), obj.getValue()));
+                field.set(t, impl.jsonToObject((Class<T>) field.getType(), obj.getValue()));
             }
             return t;
         } catch(Exception ex) {
-            ex.printStackTrace();
+            throw new JsonDeserializeException(ex);
         }
-
-        return null;
     }
 
-    public static <T> Collection<T> asCollection(Class<T> clazz, JsonList json) {
+    public static <T extends Serializable> Collection<T> asCollection(Class<T> clazz, JsonList json) {
+        Impl<T> impl = new Impl<>();
         Collection<T> collection = new ArrayList<>();
         json.getList().forEach(obj -> {
-            collection.add(jsonToObject(clazz, obj));
+            collection.add(impl.jsonToObject(clazz, obj));
         });
         return collection;
     }
 
-    public static <T> T[] asArray(Class<T> clazz, JsonList json) {
+    public static <T extends Serializable> T[] asArray(Class<T> clazz, JsonList json) {
+        Impl<T> impl = new Impl<>();
         List<IJson> list = json.getList();
         Object array = Array.newInstance(clazz, list.size());
         for(int i = 0; i < list.size(); i++) {
-            Array.set(array, i, jsonToObject(clazz, list.get(i)));
+            Array.set(array, i, impl.jsonToObject(clazz, list.get(i)));
         }
         return (T[]) array;
     }

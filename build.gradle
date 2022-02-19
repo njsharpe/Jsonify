@@ -3,7 +3,7 @@ plugins {
 }
 
 group 'me.njsharpe.jsonify'
-version '1.0-SNAPSHOT'
+version '1.0.1'
 
 task dev {
     dependsOn jar
